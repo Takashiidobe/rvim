@@ -41,15 +41,11 @@ impl Document {
         self.rows.len()
     }
 
-    fn delete_line(&mut self, at: &Position) {
-        if at.y > self.rows.len() {
+    pub fn delete_line(&mut self, y: usize) {
+        if y >= self.rows.len() {
             return;
         }
-        if at.y == self.rows.len() {
-            self.rows.push(Row::default());
-            return;
-        }
-        self.rows.remove(at.y);
+        self.rows.remove(y);
     }
 
     pub fn insert_newline(&mut self, at: &Position) {
@@ -66,6 +62,7 @@ impl Document {
         #[allow(clippy::integer_arithmetic)]
         self.rows.insert(at.y + 1, new_row);
     }
+
     pub fn insert(&mut self, at: &Position, c: char) {
         if at.y > self.rows.len() {
             return;

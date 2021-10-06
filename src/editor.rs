@@ -2,6 +2,7 @@ use crate::Document;
 use crate::Row;
 use crate::Terminal;
 use std::env;
+use std::fmt;
 use std::time::Duration;
 use std::time::Instant;
 use termion::color;
@@ -44,6 +45,16 @@ pub enum Mode {
     Visual,
 }
 
+impl fmt::Display for Mode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Self::Normal => write!(f, "normal mode"),
+            Self::Insert => write!(f, "insert mode"),
+            Self::Visual => write!(f, "visual mode"),
+        }
+    }
+}
+
 pub struct Editor {
     should_quit: bool,
     terminal: Terminal,
@@ -54,6 +65,7 @@ pub struct Editor {
     highlighted_word: Option<String>,
     mode: Mode,
     quit_times: u8,
+    previous_characters: Vec<char>,
 }
 
 impl Editor {
@@ -96,6 +108,7 @@ impl Editor {
             highlighted_word: None,
             mode: Mode::Normal,
             quit_times: QUIT_TIMES,
+            previous_characters: vec![],
         }
     }
 
@@ -180,34 +193,39 @@ impl Editor {
     }
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key = Terminal::read_key()?;
-        match (&self.mode, pressed_key) {
+        match (&self.mode, pressed_key, &mut self.previous_characters) {
             // go to visual mode when Ctrl-V is pressed in normal mode
-            (Mode::Normal, Key::Ctrl('v')) => self.mode = Mode::Visual,
+            (Mode::Normal, Key::Ctrl('v'), _) => self.mode = Mode::Visual,
 
             // go to normal mode when Esc is pressed  in Insert or Visual Mode
-            (Mode::Insert | Mode::Visual, Key::Esc) => self.mode = Mode::Normal,
+            (Mode::Insert | Mode::Visual, Key::Esc, _) => self.mode = Mode::Normal,
 
             // go to insert mode when i is pressed.
-            (Mode::Normal, Key::Char('i')) => self.mode = Mode::Insert,
+            (Mode::Normal, Key::Char('i'), _) => self.mode = Mode::Insert,
 
             // Save with w in normal mode.
-            (Mode::Normal, Key::Char('w')) => self.save(),
+            (Mode::Normal, Key::Char('w'), _) => self.save(),
 
-            // Insert if a char is pressed in Insert mode.
-            (Mode::Insert, Key::Char(c)) => {
-                self.document.insert(&self.cursor_position, c);
-                self.move_cursor(Key::Right);
-            }
             // move around in normal and visual mode with h | l | j | k
-            (Mode::Normal | Mode::Visual, Key::Char('h' | 'l' | 'j' | 'k')) => {
+            (Mode::Normal | Mode::Visual, Key::Char('h' | 'l' | 'j' | 'k'), _) => {
                 self.move_cursor(pressed_key)
             }
             // delete under cursor with x
-            (Mode::Normal, Key::Char('x')) => self.document.delete(&self.cursor_position),
+            (Mode::Normal, Key::Char('x'), _) => self.document.delete(&self.cursor_position),
 
-            // delete line with 'D' or 'dd'
-            // (Mode::Normal, Key::Shift('D')) => self.document.delete_line(&self.cursor_position),
-            (Mode::Normal, Key::Char('q')) => {
+            // delete line with 'D'
+            (Mode::Normal, Key::Char('D'), _) => self.document.delete_line(self.cursor_position.y),
+
+            // delete line with 'dd'
+            (Mode::Normal, Key::Char('d'), previous) => {
+                if previous.last() == Some(&'d') {
+                    self.document.delete_line(self.cursor_position.y);
+                    previous.clear();
+                }
+            }
+
+            // Quit with 'q'
+            (Mode::Normal, Key::Char('q'), _) => {
                 if self.quit_times > 0 && self.document.is_dirty() {
                     self.status_message = StatusMessage::from(format!(
                         "WARNING! File has unsaved changes. Press q {} more times to quit.",
@@ -219,21 +237,41 @@ impl Editor {
                 self.should_quit = true;
             }
 
-            // insert newline with o
-            (Mode::Normal, Key::Char('o')) => {
+            // insert newline after cursor with o
+            (Mode::Normal, Key::Char('o'), _) => {
                 self.document.insert_newline(&self.cursor_position);
                 self.move_cursor(Key::Down);
+                self.mode = Mode::Insert;
+            }
+
+            // insert newline before with O
+            (Mode::Normal, Key::Char('O'), _) => {
+                let mut new_position = &mut self.cursor_position;
+                new_position.y -= 1;
+                self.document.insert_newline(new_position);
+                self.move_cursor(Key::Down);
+                self.mode = Mode::Insert;
             }
 
             // Enter / to search in normal mode.
-            (Mode::Normal, Key::Char('/')) => self.search(),
+            (Mode::Normal, Key::Char('/'), _) => self.search(),
+
             // Enter Backspace in Insert mode to delete a char.
-            (Mode::Insert, Key::Backspace) => {
+            (Mode::Insert, Key::Backspace, _) => {
                 if self.cursor_position.x > 0 || self.cursor_position.y > 0 {
                     self.move_cursor(Key::Left);
                     self.document.delete(&self.cursor_position);
                 }
             }
+
+            // Insert if a char is pressed in Insert mode.
+            (Mode::Insert, Key::Char(c), _) => {
+                self.document.insert(&self.cursor_position, c);
+                self.move_cursor(Key::Right);
+            }
+
+            // push char to vector in normal mode if no use for it.
+            (Mode::Normal, Key::Char(c), previous) => previous.push(c),
             _ => (),
         }
         self.scroll();
@@ -308,7 +346,7 @@ impl Editor {
         self.cursor_position = Position { x, y }
     }
     fn draw_welcome_message(&self) {
-        let mut welcome_message = format!("Hecto editor -- version {}", VERSION);
+        let mut welcome_message = format!("rvim -- version {}", VERSION);
         let width = self.terminal.size().width as usize;
         let len = welcome_message.len();
         #[allow(clippy::integer_arithmetic, clippy::integer_division)]
@@ -364,7 +402,8 @@ impl Editor {
         );
 
         let line_indicator = format!(
-            "{} | {}/{}",
+            "{}: {} | {}/{}",
+            self.mode,
             self.document.file_type(),
             self.cursor_position.y.saturating_add(1),
             self.document.len()

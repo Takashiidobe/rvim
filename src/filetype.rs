@@ -23,6 +23,10 @@ impl Default for FileType {
     }
 }
 
+macro_rules! str_vec {
+    ($($x:expr),*) => (vec![$($x.to_string()),*]);
+}
+
 impl FileType {
     pub fn name(&self) -> String {
         self.name.clone()
@@ -31,7 +35,27 @@ impl FileType {
         &self.hl_opts
     }
     pub fn from(file_name: &str) -> Self {
-        if file_name.ends_with(".rs") {
+        if file_name.ends_with(".c") || file_name.ends_with(".h") {
+            return Self {
+                name: String::from("C"),
+                hl_opts: HighlightingOptions {
+                    numbers: true,
+                    strings: true,
+                    characters: true,
+                    comments: true,
+                    multiline_comments: true,
+                    primary_keywords: str_vec![
+                        "auto", "break", "case", "const", "continue", "default", "do", "enum",
+                        "extern", "for", "goto", "if", "register", "return", "sizeof", "static",
+                        "struct", "switch", "typedef", "union", "void", "volatile", "while"
+                    ],
+                    secondary_keywords: str_vec![
+                        "char", "int", "long", "unsigned", "float", "double", "size_t", "signed",
+                        "short", "#include", "#ifndef", "#if", "#endif", "#define", "#undef"
+                    ],
+                },
+            };
+        } else if file_name.ends_with(".rs") {
             return Self {
                 name: String::from("Rust"),
                 hl_opts: HighlightingOptions {
@@ -40,74 +64,17 @@ impl FileType {
                     characters: true,
                     comments: true,
                     multiline_comments: true,
-                    primary_keywords: vec![
-                        "as".to_string(),
-                        "break".to_string(),
-                        "const".to_string(),
-                        "continue".to_string(),
-                        "crate".to_string(),
-                        "else".to_string(),
-                        "enum".to_string(),
-                        "extern".to_string(),
-                        "false".to_string(),
-                        "fn".to_string(),
-                        "for".to_string(),
-                        "if".to_string(),
-                        "impl".to_string(),
-                        "in".to_string(),
-                        "let".to_string(),
-                        "loop".to_string(),
-                        "match".to_string(),
-                        "mod".to_string(),
-                        "move".to_string(),
-                        "mut".to_string(),
-                        "pub".to_string(),
-                        "ref".to_string(),
-                        "return".to_string(),
-                        "self".to_string(),
-                        "Self".to_string(),
-                        "static".to_string(),
-                        "struct".to_string(),
-                        "super".to_string(),
-                        "trait".to_string(),
-                        "true".to_string(),
-                        "type".to_string(),
-                        "unsafe".to_string(),
-                        "use".to_string(),
-                        "where".to_string(),
-                        "while".to_string(),
-                        "dyn".to_string(),
-                        "abstract".to_string(),
-                        "become".to_string(),
-                        "box".to_string(),
-                        "do".to_string(),
-                        "final".to_string(),
-                        "macro".to_string(),
-                        "override".to_string(),
-                        "priv".to_string(),
-                        "typeof".to_string(),
-                        "unsized".to_string(),
-                        "virtual".to_string(),
-                        "yield".to_string(),
-                        "async".to_string(),
-                        "await".to_string(),
-                        "try".to_string(),
+                    primary_keywords: str_vec![
+                        "as", "break", "const", "continue", "crate", "else", "enum", "extern",
+                        "false", "fn", "for", "if", "impl", "in", "let", "loop", "match", "mod",
+                        "move", "mut", "pub", "ref", "return", "self", "Self", "static", "struct",
+                        "super", "trait", "true", "type", "unsafe", "use", "where", "while", "dyn",
+                        "abstract", "become", "box", "do", "final", "macro", "override", "priv",
+                        "typeof", "unsized", "virtual", "yield", "async", "await", "try"
                     ],
-                    secondary_keywords: vec![
-                        "bool".to_string(),
-                        "char".to_string(),
-                        "i8".to_string(),
-                        "i16".to_string(),
-                        "i32".to_string(),
-                        "i64".to_string(),
-                        "isize".to_string(),
-                        "u8".to_string(),
-                        "u16".to_string(),
-                        "u32".to_string(),
-                        "u64".to_string(),
-                        "usize".to_string(),
-                        "f32".to_string(),
-                        "f64".to_string(),
+                    secondary_keywords: str_vec![
+                        "bool", "char", "i8", "i16", "i32", "i64", "isize", "u8", "u16", "u32",
+                        "u64", "usize", "f32", "f64"
                     ],
                 },
             };
