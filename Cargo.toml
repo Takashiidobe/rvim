@@ -1,6 +1,6 @@
 [package]
 name = "rvim"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2018"
 default-run = "rvim"
 readme = "README.md"
@@ -12,6 +12,7 @@ description = "A simple pager in rust"
 [dependencies]
 termion = "1.5.6"
 unicode-segmentation = "1.8.0"
+man = { version = "0.3.0", optional = true }
 
 [[bin]]
 name = "man"
