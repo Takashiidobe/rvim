@@ -1,13 +1,13 @@
 [package]
 name = "rvim"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2018"
 default-run = "rvim"
 readme = "README.md"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/takashiidobe/rvim"
 documentation = "https://docs.rs/rvim"
-description = "A simple pager in rust"
+description = "A text editor in rust"
 
 [dependencies]
 termion = "1.5.6"
