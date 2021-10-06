@@ -84,6 +84,17 @@ impl Row {
         self.len = length;
         self.string = result;
     }
+    pub fn get(&self, at: usize) -> Option<&str> {
+        if at > self.len() {
+            return None;
+        }
+        for (index, grapheme) in self.string[..].graphemes(true).enumerate() {
+            if index == at {
+                return Some(grapheme);
+            }
+        }
+        None
+    }
     pub fn delete(&mut self, at: usize) {
         if at >= self.len() {
             return;

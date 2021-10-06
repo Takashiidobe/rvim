@@ -11,6 +11,9 @@ use termion::event::Key;
 const STATUS_FG_COLOR: color::Rgb = color::Rgb(63, 63, 63);
 const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+static SPACE_CHARS: &str = " \t\n\r";
+static ALPHABETICAL_CHARS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
 const QUIT_TIMES: u8 = 1;
 
 #[derive(PartialEq, Copy, Clone)]
@@ -193,75 +196,122 @@ impl Editor {
     }
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
         let pressed_key = Terminal::read_key()?;
-        match (&self.mode, pressed_key, &mut self.previous_characters) {
+        match (&self.mode, pressed_key) {
             // go to visual mode when Ctrl-V is pressed in normal mode
-            (Mode::Normal, Key::Ctrl('v'), _) => self.mode = Mode::Visual,
+            (Mode::Normal, Key::Ctrl('v')) => self.mode = Mode::Visual,
 
-            // go to normal mode when Esc is pressed  in Insert or Visual Mode
-            (Mode::Insert | Mode::Visual, Key::Esc, _) => self.mode = Mode::Normal,
+            // go to normal mode when Esc is pressed in Insert or Visual Mode
+            (Mode::Insert | Mode::Visual, Key::Esc) => self.mode = Mode::Normal,
 
             // go to insert mode when i is pressed.
-            (Mode::Normal, Key::Char('i'), _) => self.mode = Mode::Insert,
+            (Mode::Normal, Key::Char('i')) => self.mode = Mode::Insert,
 
-            // Save with :w in normal mode.
-            (Mode::Normal, Key::Char('w'), previous) => {
-                if previous.last() == Some(&':') {
+            // either save if :w or go find next word.
+            (Mode::Normal, Key::Char('w')) => {
+                // move cursor to the left until the character underneath is not a space?
+                if self.previous_characters.last() != Some(&':') {
+                    // if on an alphabetical character, find the next space char
+                    if let Some(row) = self.document.row(self.cursor_position.y) {
+                        if let Some(c) = row.get(self.cursor_position.x) {
+                            if ALPHABETICAL_CHARS.contains(c) {
+                                // if we're on an alphabetical char, find the next space char
+                                if let Some(position) = self.document.find_next_of(
+                                    SPACE_CHARS,
+                                    &self.cursor_position,
+                                    SearchDirection::Forward,
+                                ) {
+                                    self.cursor_position = position;
+                                }
+                                // then find the next alphabetical char
+                                if let Some(position) = self.document.find_next_of(
+                                    ALPHABETICAL_CHARS,
+                                    &self.cursor_position,
+                                    SearchDirection::Forward,
+                                ) {
+                                    let position = position.clone();
+                                    let _ = position.x.saturating_sub(1);
+                                    self.cursor_position = position;
+                                }
+                            } else {
+                                // if we're on a space char, find the next alphabetical char
+                                if let Some(position) = self.document.find_next_of(
+                                    ALPHABETICAL_CHARS,
+                                    &self.cursor_position,
+                                    SearchDirection::Forward,
+                                ) {
+                                    let position = position.clone();
+                                    let _ = position.x.saturating_sub(1);
+                                    self.cursor_position = position;
+                                }
+                            }
+                        }
+                    }
+                }
+                // Save with :w in normal mode.
+                if self.previous_characters.last() == Some(&':') {
                     self.save();
+                    self.previous_characters.clear();
                 }
             }
 
-            // move around in normal and visual mode with h | l | j | k
-            (Mode::Normal | Mode::Visual, Key::Char('h' | 'l' | 'j' | 'k'), _) => {
-                self.move_cursor(pressed_key)
-            }
+            // move around in normal and visual mode with h | l | j | k | Up | Down | Left | Right
+            (
+                Mode::Normal | Mode::Visual,
+                Key::Char('h' | 'l' | 'j' | 'k') | Key::Up | Key::Down | Key::Left | Key::Right,
+            ) => self.move_cursor(pressed_key),
             // delete under cursor with x
-            (Mode::Normal, Key::Char('x'), _) => self.document.delete(&self.cursor_position),
+            (Mode::Normal, Key::Char('x')) => self.document.delete(&self.cursor_position),
 
             // delete line with 'D'
-            (Mode::Normal, Key::Char('D'), _) => self.document.delete_line(self.cursor_position.y),
+            (Mode::Normal, Key::Char('D')) => self.document.delete_line(self.cursor_position.y),
 
             // delete line with 'dd'
-            (Mode::Normal, Key::Char('d'), previous) => {
-                if previous.last() == Some(&'d') {
+            (Mode::Normal, Key::Char('d')) => {
+                if self.previous_characters.last() == Some(&'d') {
                     self.document.delete_line(self.cursor_position.y);
-                    previous.clear();
+                    self.previous_characters.clear();
+                } else {
+                    self.previous_characters.push('d');
                 }
             }
 
-            // Quit with 'q'
-            (Mode::Normal, Key::Char('q'), _) => {
-                if self.quit_times > 0 && self.document.is_dirty() {
-                    self.status_message = StatusMessage::from(format!(
-                        "WARNING! File has unsaved changes. Press q {} more times to quit.",
-                        self.quit_times
-                    ));
-                    self.quit_times -= 1;
-                    return Ok(());
+            // Quit with ':q'
+            (Mode::Normal, Key::Char('q')) => {
+                if self.previous_characters.last() == Some(&':') {
+                    if self.quit_times > 0 && self.document.is_dirty() {
+                        self.status_message = StatusMessage::from(format!(
+                            "WARNING! File has unsaved changes. Press q {} more times to quit.",
+                            self.quit_times
+                        ));
+                        self.quit_times -= 1;
+                        return Ok(());
+                    }
+                    self.should_quit = true;
                 }
-                self.should_quit = true;
             }
 
             // insert newline after cursor with o
-            (Mode::Normal, Key::Char('o'), _) => {
-                self.document.insert_newline(&self.cursor_position);
-                self.move_cursor(Key::Down);
+            (Mode::Normal, Key::Char('o')) => {
+                let new_position = &mut self.cursor_position;
+                new_position.y = new_position.y.saturating_add(1);
+                self.document.insert_newline(new_position);
                 self.mode = Mode::Insert;
             }
 
             // insert newline before with O
-            (Mode::Normal, Key::Char('O'), _) => {
+            (Mode::Normal, Key::Char('O')) => {
                 let mut new_position = &mut self.cursor_position;
-                new_position.y -= 1;
+                new_position.y = new_position.y.saturating_sub(1);
                 self.document.insert_newline(new_position);
-                self.move_cursor(Key::Down);
+                self.move_cursor(Key::Up);
                 self.mode = Mode::Insert;
             }
 
             // Enter / to search in normal mode.
-            (Mode::Normal, Key::Char('/'), _) => self.search(),
+            (Mode::Normal, Key::Char('/')) => self.search(),
 
             // Enter Backspace in Insert mode to delete a char.
-            (Mode::Insert, Key::Backspace, _) => {
+            (Mode::Insert, Key::Backspace) => {
                 if self.cursor_position.x > 0 || self.cursor_position.y > 0 {
                     self.move_cursor(Key::Left);
                     self.document.delete(&self.cursor_position);
@@ -269,13 +319,28 @@ impl Editor {
             }
 
             // Insert if a char is pressed in Insert mode.
-            (Mode::Insert, Key::Char(c), _) => {
+            (Mode::Insert, Key::Char(c)) => {
                 self.document.insert(&self.cursor_position, c);
                 self.move_cursor(Key::Right);
             }
 
+            // Go to top of document with 'g'
+            (Mode::Normal, Key::Char('g')) => {
+                if self.previous_characters.last() == Some(&'g') {
+                    self.cursor_position.y = 0;
+                    self.previous_characters.clear();
+                } else {
+                    self.previous_characters.push('g');
+                }
+            }
+
+            // Go to bottom of document with 'G'
+            (Mode::Normal, Key::Char('G')) => {
+                self.cursor_position.y = self.document.len() - 1;
+            }
+
             // push char to vector in normal mode if no use for it.
-            (Mode::Normal, Key::Char(c), previous) => previous.push(c),
+            (Mode::Normal, Key::Char(c)) => self.previous_characters.push(c),
             _ => (),
         }
         self.scroll();
@@ -312,8 +377,8 @@ impl Editor {
         match key {
             Key::Char('k') | Key::Up => y = y.saturating_sub(1),
             Key::Char('j') | Key::Down => {
-                if y < height {
-                    y = y.saturating_add(1);
+                if y < height - 1 {
+                    y += 1;
                 }
             }
             Key::Char('h') | Key::Left => {

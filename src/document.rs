@@ -156,6 +156,47 @@ impl Document {
         }
         None
     }
+    pub fn find_next_of(
+        &self,
+        query: &str,
+        at: &Position,
+        direction: SearchDirection,
+    ) -> Option<Position> {
+        let query: Vec<&str> = query.split("").collect();
+        if at.y >= self.rows.len() {
+            return None;
+        }
+        let mut position = Position { x: at.x, y: at.y };
+
+        let start = if direction == SearchDirection::Forward {
+            at.y
+        } else {
+            0
+        };
+        let end = if direction == SearchDirection::Forward {
+            self.rows.len()
+        } else {
+            at.y.saturating_add(1)
+        };
+        for _ in start..end {
+            if let Some(row) = self.rows.get(position.y) {
+                for q in &query {
+                    if let Some(x) = row.find(q, position.x, direction) {
+                        position.x = x;
+                        return Some(position);
+                    }
+                    if direction == SearchDirection::Forward {
+                        position.y = position.y.saturating_add(1);
+                        position.x = 0;
+                    } else {
+                        position.y = position.y.saturating_sub(1);
+                        position.x = self.rows[position.y].len();
+                    }
+                }
+            }
+        }
+        None
+    }
     pub fn highlight(&mut self, word: &Option<String>, until: Option<usize>) {
         let mut start_with_comment = false;
         let until = if let Some(until) = until {
