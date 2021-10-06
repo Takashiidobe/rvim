@@ -40,7 +40,19 @@ impl Document {
     pub fn len(&self) -> usize {
         self.rows.len()
     }
-    fn insert_newline(&mut self, at: &Position) {
+
+    fn delete_line(&mut self, at: &Position) {
+        if at.y > self.rows.len() {
+            return;
+        }
+        if at.y == self.rows.len() {
+            self.rows.push(Row::default());
+            return;
+        }
+        self.rows.remove(at.y);
+    }
+
+    pub fn insert_newline(&mut self, at: &Position) {
         if at.y > self.rows.len() {
             return;
         }

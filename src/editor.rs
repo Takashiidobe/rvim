@@ -72,8 +72,7 @@ impl Editor {
     }
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
-        let mut initial_status =
-            String::from("HELP: Ctrl-F = find | Ctrl-S = save | Ctrl-Q = quit");
+        let mut initial_status = String::from("HELP: `/` = find | `w` = save | `q` = quit");
 
         let document = if let Some(file_name) = args.get(1) {
             let doc = Document::open(file_name);
@@ -105,7 +104,6 @@ impl Editor {
         Terminal::cursor_position(&Position::default());
         if self.should_quit {
             Terminal::clear_screen();
-            println!("Goodbye.\r");
         } else {
             self.document.highlight(
                 &self.highlighted_word,
@@ -151,12 +149,12 @@ impl Editor {
                 |editor, key, query| {
                     let mut moved = false;
                     match key {
-                        Key::Right | Key::Down => {
+                        Key::Char('n') | Key::Right => {
                             direction = SearchDirection::Forward;
                             editor.move_cursor(Key::Right);
                             moved = true;
                         }
-                        Key::Left | Key::Up => direction = SearchDirection::Backward,
+                        Key::Char('p') | Key::Left => direction = SearchDirection::Backward,
                         _ => direction = SearchDirection::Forward,
                     }
                     if let Some(position) =
@@ -219,6 +217,12 @@ impl Editor {
                     return Ok(());
                 }
                 self.should_quit = true;
+            }
+
+            // insert newline with o
+            (Mode::Normal, Key::Char('o')) => {
+                self.document.insert_newline(&self.cursor_position);
+                self.move_cursor(Key::Down);
             }
 
             // Enter / to search in normal mode.
