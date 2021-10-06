@@ -15,6 +15,16 @@ fn main() -> Result<(), Error> {
                 .command("rvim [FILE]...")
                 .output("TODO"),
         )
+        .custom(Section::new("Features").paragraph(
+            r#"Syntax Highlighting:
+    - Bash (.sh)
+    - C (.c, .h)
+    - C++ (.cc, .cpp, .C, .h, .hh, .hpp)
+    - Javascript (.js)
+    - Python (.py)
+    - Ruby (.rb)
+    - Rust (.rs)"#,
+        ))
         .author(Author::new("Takashi I").email("mail@takashiidobe.com"))
         .render();
 

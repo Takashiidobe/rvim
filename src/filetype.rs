@@ -35,7 +35,69 @@ impl FileType {
         &self.hl_opts
     }
     pub fn from(file_name: &str) -> Self {
-        if file_name.ends_with(".c") {
+        if file_name.ends_with(".hs") {
+            return Self {
+                name: String::from("Haskell"),
+                hl_opts: HighlightingOptions {
+                    numbers: true,
+                    strings: true,
+                    characters: true,
+                    comments: true,
+                    multiline_comments: true,
+                    primary_keywords: str_vec![
+                        "case",
+                        "class",
+                        "data",
+                        "default",
+                        "deriving",
+                        "do",
+                        "else",
+                        "forall",
+                        "if",
+                        "import",
+                        "in",
+                        "infix",
+                        "infixl",
+                        "infixr",
+                        "instance",
+                        "let",
+                        "module",
+                        "newtype",
+                        "of",
+                        "qualified",
+                        "then",
+                        "type",
+                        "where",
+                        "_",
+                        "foreign",
+                        "ccall",
+                        "as",
+                        "safe",
+                        "unsafe"
+                    ],
+                    secondary_keywords: str_vec![
+                        "..", "::", "=", "\\", "|", "<-", "->", "@", "~", "=>", "[", "]", "$", "!",
+                        "."
+                    ],
+                },
+            };
+        } else if file_name.ends_with(".sh") {
+            return Self {
+                name: String::from("Bash"),
+                hl_opts: HighlightingOptions {
+                    numbers: true,
+                    strings: true,
+                    characters: true,
+                    comments: true,
+                    multiline_comments: true,
+                    primary_keywords: str_vec![
+                        "case", "do", "done", "elif", "else", "esac", "fi", "for", "function",
+                        "if", "in", "select", "then", "time", "until", "while"
+                    ],
+                    secondary_keywords: str_vec![],
+                },
+            };
+        } else if file_name.ends_with(".c") {
             return Self {
                 name: String::from("C"),
                 hl_opts: HighlightingOptions {
@@ -267,6 +329,77 @@ impl FileType {
                         "yield"
                     ],
                     secondary_keywords: str_vec!["get", "set"],
+                },
+            };
+        } else if file_name.ends_with(".rb") {
+            return Self {
+                name: String::from("Ruby"),
+                hl_opts: HighlightingOptions {
+                    numbers: true,
+                    strings: true,
+                    characters: true,
+                    comments: true,
+                    multiline_comments: true,
+                    primary_keywords: str_vec![
+                        "__ENCODING__",
+                        "__LINE",
+                        "__FILE",
+                        "BEGIN",
+                        "END",
+                        "alias",
+                        "and",
+                        "begin",
+                        "break",
+                        "case",
+                        "class",
+                        "def",
+                        "defined?",
+                        "do?",
+                        "else",
+                        "elsif",
+                        "end",
+                        "ensure",
+                        "false",
+                        "for",
+                        "if",
+                        "in",
+                        "module",
+                        "next",
+                        "nil",
+                        "not",
+                        "or",
+                        "redo",
+                        "retry",
+                        "return",
+                        "self",
+                        "then",
+                        "true",
+                        "undef",
+                        "unless",
+                        "until",
+                        "when",
+                        "while",
+                        "yield"
+                    ],
+                    secondary_keywords: str_vec![],
+                },
+            };
+        } else if file_name.ends_with(".py") {
+            return Self {
+                name: String::from("Python"),
+                hl_opts: HighlightingOptions {
+                    numbers: true,
+                    strings: true,
+                    characters: true,
+                    comments: true,
+                    multiline_comments: true,
+                    primary_keywords: str_vec![
+                        "and", "as", "assert", "break", "class", "continue", "def", "del", "elif",
+                        "else", "except", "False", "finally", "for", "from", "global", "if",
+                        "import", "in", "is", "lambda", "None", "nonlocal", "not", "or", "pass",
+                        "raise", "return", "True", "try", "while"
+                    ],
+                    secondary_keywords: str_vec![],
                 },
             };
         }

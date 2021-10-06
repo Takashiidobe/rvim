@@ -2,6 +2,19 @@
 
 A text editor in rust. Based off the wonderful tutorial by Philipp Flenker [Hecto: Build your own text editor in Rust](https://www.philippflenker.com/hecto/)
 
+## Syntax Highlighting
+
+Supports syntax highlighting for the following languages:
+
+- Bash (.sh)
+- C (.c/.h)
+- C++ (.cc/.cpp/.C/.h/.hh/.hpp)
+- Haskell (.hs)
+- Javascript (.js)
+- Python (.py)
+- Ruby (.rb)
+- Rust (.rs)
+
 ## License
 
 Licensed under either of Apache License, Version 2.0 or MIT license at your option.

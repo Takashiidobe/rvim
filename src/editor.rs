@@ -87,7 +87,7 @@ impl Editor {
     }
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
-        let mut initial_status = String::from("HELP: `/` = find | `w` = save | `q` = quit");
+        let mut initial_status = String::from("HELP: `/` = find | `:w` = save | `:q` = quit");
 
         let document = if let Some(file_name) = args.get(1) {
             let doc = Document::open(file_name);
@@ -204,9 +204,29 @@ impl Editor {
             (Mode::Insert | Mode::Visual, Key::Esc) => self.mode = Mode::Normal,
 
             // go to insert mode when i is pressed.
-            (Mode::Normal, Key::Char('i')) => self.mode = Mode::Insert,
+            (Mode::Normal, Key::Char('i')) => {
+                self.mode = Mode::Insert;
+                Terminal::cursor_hide();
+            }
+
+            // go to insert mode one past cursor if a is pressed.
+            (Mode::Normal, Key::Char('a')) => {
+                self.move_cursor(Key::Right);
+                self.mode = Mode::Insert;
+            }
+
+            // go to insert mode at end of line if A is pressed.
+            (Mode::Normal, Key::Char('A')) => {
+                self.cursor_position.x = self
+                    .document
+                    .row(self.cursor_position.y)
+                    .unwrap_or(&Row::default())
+                    .len();
+                self.mode = Mode::Insert;
+            }
 
             // either save if :w or go find next word.
+            // FIXME: Broken
             (Mode::Normal, Key::Char('w')) => {
                 // move cursor to the left until the character underneath is not a space?
                 if self.previous_characters.last() != Some(&':') {
@@ -247,6 +267,7 @@ impl Editor {
                         }
                     }
                 }
+
                 // Save with :w in normal mode.
                 if self.previous_characters.last() == Some(&':') {
                     self.save();
@@ -260,7 +281,10 @@ impl Editor {
                 Key::Char('h' | 'l' | 'j' | 'k') | Key::Up | Key::Down | Key::Left | Key::Right,
             ) => self.move_cursor(pressed_key),
             // delete under cursor with x
-            (Mode::Normal, Key::Char('x')) => self.document.delete(&self.cursor_position),
+            (Mode::Normal, Key::Char('x')) => {
+                self.document.delete(&self.cursor_position);
+                self.move_cursor(Key::Left)
+            }
 
             // delete line with 'D'
             (Mode::Normal, Key::Char('D')) => self.document.delete_line(self.cursor_position.y),
@@ -294,16 +318,17 @@ impl Editor {
             (Mode::Normal, Key::Char('o')) => {
                 let new_position = &mut self.cursor_position;
                 new_position.y = new_position.y.saturating_add(1);
+                new_position.x = 0;
                 self.document.insert_newline(new_position);
                 self.mode = Mode::Insert;
             }
 
             // insert newline before with O
             (Mode::Normal, Key::Char('O')) => {
-                let mut new_position = &mut self.cursor_position;
+                let new_position = &mut self.cursor_position;
                 new_position.y = new_position.y.saturating_sub(1);
+                new_position.x = 0;
                 self.document.insert_newline(new_position);
-                self.move_cursor(Key::Up);
                 self.mode = Mode::Insert;
             }
 
@@ -377,7 +402,7 @@ impl Editor {
         match key {
             Key::Char('k') | Key::Up => y = y.saturating_sub(1),
             Key::Char('j') | Key::Down => {
-                if y < height - 1 {
+                if y < height.saturating_sub(1) {
                     y += 1;
                 }
             }
