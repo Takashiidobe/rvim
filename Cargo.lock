@@ -55,7 +55,7 @@ checksum = "e33e4fb37ba46888052c763e4ec2acfedd8f00f62897b630cadb6298b833675e"
 
 [[package]]
 name = "rvim"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "man",
  "termion",

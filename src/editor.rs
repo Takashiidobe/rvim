@@ -203,8 +203,12 @@ impl Editor {
             // go to insert mode when i is pressed.
             (Mode::Normal, Key::Char('i'), _) => self.mode = Mode::Insert,
 
-            // Save with w in normal mode.
-            (Mode::Normal, Key::Char('w'), _) => self.save(),
+            // Save with :w in normal mode.
+            (Mode::Normal, Key::Char('w'), previous) => {
+                if previous.last() == Some(&':') {
+                    self.save();
+                }
+            }
 
             // move around in normal and visual mode with h | l | j | k
             (Mode::Normal | Mode::Visual, Key::Char('h' | 'l' | 'j' | 'k'), _) => {
@@ -306,13 +310,13 @@ impl Editor {
             0
         };
         match key {
-            Key::Char('k') => y = y.saturating_sub(1),
-            Key::Char('j') => {
+            Key::Char('k') | Key::Up => y = y.saturating_sub(1),
+            Key::Char('j') | Key::Down => {
                 if y < height {
                     y = y.saturating_add(1);
                 }
             }
-            Key::Char('h') => {
+            Key::Char('h') | Key::Left => {
                 if x > 0 {
                     x -= 1;
                 } else if y > 0 {
@@ -324,7 +328,7 @@ impl Editor {
                     }
                 }
             }
-            Key::Char('l') => {
+            Key::Char('l') | Key::Right => {
                 if x < width {
                     x += 1;
                 } else if y < height {
