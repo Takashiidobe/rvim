@@ -20,8 +20,13 @@ fn main() -> Result<(), Error> {
     - Bash (.sh)
     - C (.c, .h)
     - C++ (.cc, .cpp, .C, .h, .hh, .hpp)
+    - C# (.cs)
+    - Java (.java)
     - Javascript (.js)
+    - JSON (.json)
+    - Go (.go)
     - Python (.py)
+    - R (.r)
     - Ruby (.rb)
     - Rust (.rs)"#,
         ))

@@ -7,11 +7,15 @@ A text editor in rust. Based off the wonderful tutorial by Philipp Flenker [Hect
 Supports syntax highlighting for the following languages:
 
 - Bash (.sh)
-- C (.c/.h)
-- C++ (.cc/.cpp/.C/.h/.hh/.hpp)
-- Haskell (.hs)
+- C (.c, .h)
+- C++ (.cc, .cpp, .C, .h, .hh, .hpp)
+- C# (.cs)
+- Java (.java)
 - Javascript (.js)
+- JSON (.json)
+- Go (.go)
 - Python (.py)
+- R (.r)
 - Ruby (.rb)
 - Rust (.rs)
 
