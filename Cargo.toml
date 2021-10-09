@@ -21,3 +21,8 @@ required-features = ["build_deps"]
 
 [features]
 build_deps = ["man"]
+
+[profile.release]
+opt-level = "z"
+codegen-units = 1
+panic = "abort"

@@ -201,7 +201,7 @@ impl Editor {
             (Mode::Normal, Key::Ctrl('v')) => self.mode = Mode::Visual,
 
             // go to normal mode when Esc is pressed in Insert or Visual Mode
-            (Mode::Insert | Mode::Visual, Key::Esc) => self.mode = Mode::Normal,
+            (_, Key::Esc) => self.mode = Mode::Normal,
 
             // go to insert mode when i is pressed.
             (Mode::Normal, Key::Char('i')) => {
@@ -231,41 +231,8 @@ impl Editor {
                 // move cursor to the left until the character underneath is not a space?
                 if self.previous_characters.last() != Some(&':') {
                     // if on an alphabetical character, find the next space char
-                    if let Some(row) = self.document.row(self.cursor_position.y) {
-                        if let Some(c) = row.get(self.cursor_position.x) {
-                            if ALPHABETICAL_CHARS.contains(c) {
-                                // if we're on an alphabetical char, find the next space char
-                                if let Some(position) = self.document.find_next_of(
-                                    SPACE_CHARS,
-                                    &self.cursor_position,
-                                    SearchDirection::Forward,
-                                ) {
-                                    self.cursor_position = position;
-                                }
-                                // then find the next alphabetical char
-                                if let Some(position) = self.document.find_next_of(
-                                    ALPHABETICAL_CHARS,
-                                    &self.cursor_position,
-                                    SearchDirection::Forward,
-                                ) {
-                                    let position = position.clone();
-                                    let _ = position.x.saturating_sub(1);
-                                    self.cursor_position = position;
-                                }
-                            } else {
-                                // if we're on a space char, find the next alphabetical char
-                                if let Some(position) = self.document.find_next_of(
-                                    ALPHABETICAL_CHARS,
-                                    &self.cursor_position,
-                                    SearchDirection::Forward,
-                                ) {
-                                    let position = position.clone();
-                                    let _ = position.x.saturating_sub(1);
-                                    self.cursor_position = position;
-                                }
-                            }
-                        }
-                    }
+                    // if curr char is a space
+                    // keep going until you find the next alphanumeric char.
                 }
 
                 // Save with :w in normal mode.
