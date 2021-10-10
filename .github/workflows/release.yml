@@ -1,124 +1,176 @@
-name: Release
+# The way this works is the following:
+#
+# The create-release job runs purely to initialize the GitHub release itself
+# and to output upload_url for the following job.
+#
+# The build-release job runs only once create-release is finished. It gets the
+# release upload URL from create-release job outputs, then builds the release
+# executables for each supported platform and attaches them as release assets
+# to the previously created release.
+#
+# The key here is that we create the release only once.
+#
+# Reference:
+# https://eugene-babichenko.github.io/blog/2020/05/09/github-actions-cross-platform-auto-releases/
 
+name: release
 on:
   push:
+    # Enable when testing release infrastructure on a branch.
+    # branches:
+    # - ag/work
     tags:
-      - v*
-
+    - "v[0-9]+.[0-9]+.[0-9]+"
 jobs:
-  release:
-    name: Build Rust for target (${{ matrix.name }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - target: aarch64-unknown-linux-gnu
-            name: "ARM64 Linux (kernel 4.2, glibc 2.17+)"
-            os: ubuntu-latest
-            sccache-path: /home/runner/.cache/sccache
-          - target: x86_64-apple-darwin
-            name: "64-bit macOS (10.7+, Lion+)"
-            os: macos-latest
-            sccache-path: /Users/runner/Library/Caches/Mozilla.sccache
-          - target: aarch64-apple-darwin
-            name: "ARM64 macOS (11.0+, Big Sur+)"
-            sccache-path: /Users/runner/Library/Caches/Mozilla.sccache
-            os: macos-latest
-          - target: x86_64-pc-windows-gnu
-            name: "64-bit MinGW (Windows 7+)"
-            sccache-path: "C:\\Users\\runner\\AppData\\Local\\Mozilla\\sccache"
-            os: windows-latest
-          - target: x86_64-pc-windows-msvc
-            name: "64-bit MSVC (Windows 7+)"
-            sccache-path: "C:\\Users\\runner\\AppData\\Local\\Mozilla\\sccache"
-            os: windows-latest
-          - target: x86_64-unknown-linux-gnu
-            name: "64-bit Linux (kernel 2.6.32+, glibc 2.11+)"
-            os: ubuntu-latest
-            sccache-path: /home/runner/.cache/sccache
-          - target: x86_64-unknown-linux-musl
-            name: "64-bit Linux with MUSL"
-            os: ubuntu-latest
-            sccache-path: /home/runner/.cache/sccache
-    env:
-      RUST_BACKTRACE: full
-      RUSTC_WRAPPER: sccache
-      SCCACHE_CACHE_SIZE: 2G
-      SCCACHE_DIR: /home/runner/.cache/sccache
-      # SCCACHE_RECACHE: 1 # Uncomment this to clear cache, then comment it back out
+  create-release:
+    name: create-release
+    runs-on: ubuntu-latest
+    # env:
+      # Set to force version number, e.g., when no tag exists.
+      # RG_VERSION: TEST-0.0.0
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+      rg_version: ${{ env.RG_VERSION }}
     steps:
-      - name: 📥 Git checkout
-        uses: actions/checkout@v2
-      - name: Install sccache (🐧)
-        if: matrix.os == 'ubuntu-latest'
+      - name: Get the release version from the tag
+        shell: bash
+        if: env.RG_VERSION == ''
+        run: |
+          # Apparently, this is the right way to get a tag name. Really?
+          #
+          # See: https://github.community/t5/GitHub-Actions/How-to-get-just-the-tag-name/m-p/32167/highlight/true#M1027
+          echo "RG_VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          echo "version is: ${{ env.RG_VERSION }}"
+      - name: Create GitHub release
+        id: release
+        uses: actions/create-release@v1
         env:
-          LINK: https://github.com/mozilla/sccache/releases/download
-          SCCACHE_VERSION: v0.2.15
-        run: |
-          SCCACHE_FILE=sccache-$SCCACHE_VERSION-x86_64-unknown-linux-musl
-          mkdir -p $HOME/.local/bin
-          curl -L "$LINK/$SCCACHE_VERSION/$SCCACHE_FILE.tar.gz" | tar xz
-          mv -f $SCCACHE_FILE/sccache $HOME/.local/bin/sccache
-          chmod a+x $HOME/.local/bin/sccache
-          echo "$HOME/.local/bin" | tee -a $GITHUB_PATH
-      - name: Install sccache
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew update
-          brew install sccache
-      - name: Install sccache 
-        if: matrix.os == 'windows-latest'
-        run: |
-          Set-Location "$env:USERPROFILE"
-          $client = new-object System.Net.WebClient
-          $client.DownloadFile("https://github.com/mozilla/sccache/releases/download/v0.2.15/sccache-v0.2.15-x86_64-pc-windows-msvc.tar.gz", "$pwd\sccache.tar.gz")
-          tar -xvzf .\sccache.tar.gz
-          Move-Item -Path .\sccache-v0.2.15-x86_64-pc-windows-msvc\sccache.exe -Destination .\.cargo\bin\sccache.exe
-      - name: 🦀 Install Rust
-        uses: actions-rs/toolchain@v1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          toolchain: stable
-          target: ${{ matrix.target }}
-          profile: minimal
-          override: true
-      - name: Cache cargo registry
-        uses: actions/cache@v2
-        continue-on-error: false
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-      - name: Save sccache
-        uses: actions/cache@v2
-        continue-on-error: false
-        with:
-          path: /home/runner/.cache/sccache
-          key: ${{ runner.os }}-sccache-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-sccache-
-      - name: ▶️  Start sccache server
-        run: sccache --start-server
-      # Build
-      - name: 🏗 Build 
-        uses: actions-rs/cargo@v1
-        with:
-          use-cross: true
-          command: build
-          args: --release --locked --target ${{ matrix.target }}
-      # Upload
-      - name: Upload binary to release
-        uses: svenstaro/upload-release-action@v1-release
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/${{ matrix.target }}/release/plop-tui
-          asset_name: plop-tui-${{ matrix.target }}
-          tag: ${{ github.event.client_payload.new_version }}
-      # End
-      - name: 📊 Print sccache stats
-        run: sccache --show-stats
-      - name: 🛑 Stop sccache server
-        run: sccache --stop-server || true
+          tag_name: ${{ env.RG_VERSION }}
+          release_name: ${{ env.RG_VERSION }}
+
+  build-release:
+    name: build-release
+    needs: ['create-release']
+    runs-on: ${{ matrix.os }}
+    env:
+      # For some builds, we use cross to test on 32-bit and big-endian
+      # systems.
+      CARGO: cargo
+      # When CARGO is set to CROSS, this is set to `--target matrix.target`.
+      TARGET_FLAGS: ""
+      # When CARGO is set to CROSS, TARGET_DIR includes matrix.target.
+      TARGET_DIR: ./target
+      # Emit backtraces on panics.
+      RUST_BACKTRACE: 1
+      # Build static releases with PCRE2.
+      PCRE2_SYS_STATIC: 1
+    strategy:
+      matrix:
+        build: [linux, linux-arm, macos, win-msvc, win-gnu, win32-msvc]
+        include:
+        - build: linux
+          os: ubuntu-18.04
+          rust: nightly
+          target: x86_64-unknown-linux-musl
+        - build: linux-arm
+          os: ubuntu-18.04
+          rust: nightly
+          target: arm-unknown-linux-gnueabihf
+        - build: macos
+          os: macos-latest
+          rust: nightly
+          target: x86_64-apple-darwin
+        - build: win-msvc
+          os: windows-2019
+          rust: nightly
+          target: x86_64-pc-windows-msvc
+        - build: win-gnu
+          os: windows-2019
+          rust: nightly-x86_64-gnu
+          target: x86_64-pc-windows-gnu
+        - build: win32-msvc
+          os: windows-2019
+          rust: nightly
+          target: i686-pc-windows-msvc
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 1
+
+    - name: Install packages (Ubuntu)
+      if: matrix.os == 'ubuntu-18.04'
+      run: |
+        ci/ubuntu-install-packages
+    - name: Install packages (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        ci/macos-install-packages
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ matrix.rust }}
+        profile: minimal
+        override: true
+        target: ${{ matrix.target }}
+
+    - name: Use Cross
+      shell: bash
+      run: |
+        cargo install cross
+        echo "CARGO=cross" >> $GITHUB_ENV
+        echo "TARGET_FLAGS=--target ${{ matrix.target }}" >> $GITHUB_ENV
+        echo "TARGET_DIR=./target/${{ matrix.target }}" >> $GITHUB_ENV
+    - name: Show command used for Cargo
+      run: |
+        echo "cargo command is: ${{ env.CARGO }}"
+        echo "target flag is: ${{ env.TARGET_FLAGS }}"
+        echo "target dir is: ${{ env.TARGET_DIR }}"
+    - name: Build release binary
+      run: ${{ env.CARGO }} build --verbose --release --features pcre2 ${{ env.TARGET_FLAGS }}
+
+    - name: Strip release binary (linux and macos)
+      if: matrix.build == 'linux' || matrix.build == 'macos'
+      run: strip "target/${{ matrix.target }}/release/rg"
+
+    - name: Strip release binary (arm)
+      if: matrix.build == 'linux-arm'
+      run: |
+        docker run --rm -v \
+          "$PWD/target:/target:Z" \
+          rustembedded/cross:arm-unknown-linux-gnueabihf \
+          arm-linux-gnueabihf-strip \
+          /target/arm-unknown-linux-gnueabihf/release/rg
+    - name: Build archive
+      shell: bash
+      run: |
+        outdir="$(ci/cargo-out-dir "${{ env.TARGET_DIR }}")"
+        staging="ripgrep-${{ needs.create-release.outputs.rg_version }}-${{ matrix.target }}"
+        mkdir -p "$staging"/{complete,doc}
+        cp {README.md,COPYING,UNLICENSE,LICENSE-MIT} "$staging/"
+        cp {CHANGELOG.md,FAQ.md,GUIDE.md} "$staging/doc/"
+        cp "$outdir"/{rg.bash,rg.fish,_rg.ps1} "$staging/complete/"
+        cp complete/_rg "$staging/complete/"
+        if [ "${{ matrix.os }}" = "windows-2019" ]; then
+          cp "target/${{ matrix.target }}/release/rg.exe" "$staging/"
+          7z a "$staging.zip" "$staging"
+          echo "ASSET=$staging.zip" >> $GITHUB_ENV
+        else
+          # The man page is only generated on Unix systems. ¯\_(ツ)_/¯
+          cp "$outdir"/rg.1 "$staging/doc/"
+          cp "target/${{ matrix.target }}/release/rg" "$staging/"
+          tar czf "$staging.tar.gz" "$staging"
+          echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+        fi
+    - name: Upload release archive
+      uses: actions/upload-release-asset@v1.0.1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.create-release.outputs.upload_url }}
+        asset_path: ${{ env.ASSET }}
+        asset_name: ${{ env.ASSET }}
+        asset_content_type: application/octet-stream
