@@ -3,6 +3,7 @@ use crate::Row;
 use crate::Terminal;
 use std::env;
 use std::fmt;
+use std::fs::File;
 use std::time::Duration;
 use std::time::Instant;
 use termion::color;
@@ -87,15 +88,15 @@ impl Editor {
     }
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
-        let mut initial_status = String::from("HELP: `/` = find | `:w` = save | `:q` = quit");
+        let initial_status = String::from("HELP: `/` = find | `:w` = save | `:q` = quit");
 
         let document = if let Some(file_name) = args.get(1) {
             let doc = Document::open(file_name);
             if let Ok(doc) = doc {
                 doc
             } else {
-                initial_status = format!("ERR: Could not open file: {}", file_name);
-                Document::default()
+                let _ = File::create(file_name);
+                Document::open(file_name).unwrap()
             }
         } else {
             Document::default()
