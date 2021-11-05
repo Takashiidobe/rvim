@@ -1,19 +1,27 @@
 use crate::Document;
 use crate::Row;
 use crate::Terminal;
+use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::style::Color;
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 use std::env;
 use std::fmt;
 use std::fs::File;
 use std::time::Duration;
 use std::time::Instant;
-use termion::color;
-use termion::event::Key;
 
-const STATUS_FG_COLOR: color::Rgb = color::Rgb(63, 63, 63);
-const STATUS_BG_COLOR: color::Rgb = color::Rgb(239, 239, 239);
+const STATUS_FG_COLOR: Color = Color::Rgb {
+    r: 63,
+    g: 63,
+    b: 63,
+};
+const STATUS_BG_COLOR: Color = Color::Rgb {
+    r: 239,
+    g: 239,
+    b: 239,
+};
+
 const VERSION: &str = env!("CARGO_PKG_VERSION");
-static SPACE_CHARS: &str = " \t\n\r";
-static ALPHABETICAL_CHARS: &str = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 const QUIT_TIMES: u8 = 1;
 
@@ -74,6 +82,7 @@ pub struct Editor {
 
 impl Editor {
     pub fn run(&mut self) {
+        enable_raw_mode().unwrap();
         loop {
             if let Err(error) = self.refresh_screen() {
                 die(error);
@@ -85,6 +94,7 @@ impl Editor {
                 die(error);
             }
         }
+        disable_raw_mode().unwrap();
     }
     pub fn default() -> Self {
         let args: Vec<String> = env::args().collect();
@@ -166,12 +176,29 @@ impl Editor {
                 |editor, key, query| {
                     let mut moved = false;
                     match key {
-                        Key::Char('n') | Key::Right => {
+                        Event::Key(KeyEvent {
+                            code: KeyCode::Char('n'),
+                            ..
+                        })
+                        | Event::Key(KeyEvent {
+                            code: KeyCode::Right,
+                            ..
+                        }) => {
                             direction = SearchDirection::Forward;
-                            editor.move_cursor(Key::Right);
+                            editor.move_cursor(Event::Key(KeyEvent {
+                                code: KeyCode::Right,
+                                modifiers: KeyModifiers::NONE,
+                            }));
                             moved = true;
                         }
-                        Key::Char('p') | Key::Left => direction = SearchDirection::Backward,
+                        Event::Key(KeyEvent {
+                            code: KeyCode::Char('p'),
+                            ..
+                        })
+                        | Event::Key(KeyEvent {
+                            code: KeyCode::Left,
+                            ..
+                        }) => direction = SearchDirection::Backward,
                         _ => direction = SearchDirection::Forward,
                     }
                     if let Some(position) =
@@ -182,7 +209,10 @@ impl Editor {
                         editor.cursor_position = position;
                         editor.scroll();
                     } else if moved {
-                        editor.move_cursor(Key::Left);
+                        editor.move_cursor(Event::Key(KeyEvent {
+                            code: KeyCode::Left,
+                            modifiers: KeyModifiers::NONE,
+                        }));
                     }
                     editor.highlighted_word = Some(query.to_string());
                 },
@@ -196,28 +226,60 @@ impl Editor {
         self.highlighted_word = None;
     }
     fn process_keypress(&mut self) -> Result<(), std::io::Error> {
-        let pressed_key = Terminal::read_key()?;
-        match (&self.mode, pressed_key) {
+        let event = Terminal::read_key()?;
+        match (&self.mode, event) {
             // go to visual mode when Ctrl-V is pressed in normal mode
-            (Mode::Normal, Key::Ctrl('v')) => self.mode = Mode::Visual,
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('v'),
+                    modifiers: KeyModifiers::CONTROL,
+                }),
+            ) => self.mode = Mode::Visual,
 
             // go to normal mode when Esc is pressed in Insert or Visual Mode
-            (_, Key::Esc) => self.mode = Mode::Normal,
+            (
+                _,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Esc, ..
+                }),
+            ) => self.mode = Mode::Normal,
 
             // go to insert mode when i is pressed.
-            (Mode::Normal, Key::Char('i')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('i'),
+                    ..
+                }),
+            ) => {
                 self.mode = Mode::Insert;
                 Terminal::cursor_hide();
             }
 
             // go to insert mode one past cursor if a is pressed.
-            (Mode::Normal, Key::Char('a')) => {
-                self.move_cursor(Key::Right);
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('a'),
+                    ..
+                }),
+            ) => {
+                self.move_cursor(Event::Key(KeyEvent {
+                    code: KeyCode::Right,
+                    modifiers: KeyModifiers::NONE,
+                }));
                 self.mode = Mode::Insert;
             }
 
             // go to insert mode at end of line if A is pressed.
-            (Mode::Normal, Key::Char('A')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('A'),
+                    ..
+                }),
+            ) => {
                 self.cursor_position.x = self
                     .document
                     .row(self.cursor_position.y)
@@ -228,7 +290,13 @@ impl Editor {
 
             // either save if :w or go find next word.
             // FIXME: Broken
-            (Mode::Normal, Key::Char('w')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('w'),
+                    ..
+                }),
+            ) => {
                 // move cursor to the left until the character underneath is not a space?
                 if self.previous_characters.last() != Some(&':') {
                     // if on an alphabetical character, find the next space char
@@ -246,19 +314,58 @@ impl Editor {
             // move around in normal and visual mode with h | l | j | k | Up | Down | Left | Right
             (
                 Mode::Normal | Mode::Visual,
-                Key::Char('h' | 'l' | 'j' | 'k') | Key::Up | Key::Down | Key::Left | Key::Right,
-            ) => self.move_cursor(pressed_key),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('h' | 'l' | 'j' | 'k'),
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Up, ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Down,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Left,
+                    ..
+                })
+                | Event::Key(KeyEvent {
+                    code: KeyCode::Right,
+                    ..
+                }),
+            ) => self.move_cursor(event),
             // delete under cursor with x
-            (Mode::Normal, Key::Char('x')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('x'),
+                    ..
+                }),
+            ) => {
                 self.document.delete(&self.cursor_position);
-                self.move_cursor(Key::Left)
+                self.move_cursor(Event::Key(KeyEvent {
+                    code: KeyCode::Left,
+                    modifiers: KeyModifiers::NONE,
+                }))
             }
 
             // delete line with 'D'
-            (Mode::Normal, Key::Char('D')) => self.document.delete_line(self.cursor_position.y),
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('D'),
+                    ..
+                }),
+            ) => self.document.delete_line(self.cursor_position.y),
 
             // delete line with 'dd'
-            (Mode::Normal, Key::Char('d')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('d'),
+                    modifiers: KeyModifiers::NONE,
+                }),
+            ) => {
                 if self.previous_characters.last() == Some(&'d') {
                     self.document.delete_line(self.cursor_position.y);
                     self.previous_characters.clear();
@@ -268,7 +375,13 @@ impl Editor {
             }
 
             // Quit with ':q'
-            (Mode::Normal, Key::Char('q')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('q'),
+                    ..
+                }),
+            ) => {
                 if self.previous_characters.last() == Some(&':') {
                     if self.quit_times > 0 && self.document.is_dirty() {
                         self.status_message = StatusMessage::from(format!(
@@ -283,7 +396,13 @@ impl Editor {
             }
 
             // insert newline after cursor with o
-            (Mode::Normal, Key::Char('o')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('o'),
+                    ..
+                }),
+            ) => {
                 let new_position = &mut self.cursor_position;
                 new_position.y = new_position.y.saturating_add(1);
                 new_position.x = 0;
@@ -292,7 +411,13 @@ impl Editor {
             }
 
             // insert newline before with O
-            (Mode::Normal, Key::Char('O')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('O'),
+                    ..
+                }),
+            ) => {
                 let new_position = &mut self.cursor_position;
                 new_position.y = new_position.y.saturating_sub(1);
                 new_position.x = 0;
@@ -301,24 +426,54 @@ impl Editor {
             }
 
             // Enter / to search in normal mode.
-            (Mode::Normal, Key::Char('/')) => self.search(),
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('/'),
+                    modifiers: KeyModifiers::NONE,
+                }),
+            ) => self.search(),
 
             // Enter Backspace in Insert mode to delete a char.
-            (Mode::Insert, Key::Backspace) => {
+            (
+                Mode::Insert,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Backspace,
+                    ..
+                }),
+            ) => {
                 if self.cursor_position.x > 0 || self.cursor_position.y > 0 {
-                    self.move_cursor(Key::Left);
+                    self.move_cursor(Event::Key(KeyEvent {
+                        code: KeyCode::Left,
+                        modifiers: KeyModifiers::NONE,
+                    }));
                     self.document.delete(&self.cursor_position);
                 }
             }
 
             // Insert if a char is pressed in Insert mode.
-            (Mode::Insert, Key::Char(c)) => {
+            (
+                Mode::Insert,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char(c),
+                    ..
+                }),
+            ) => {
                 self.document.insert(&self.cursor_position, c);
-                self.move_cursor(Key::Right);
+                self.move_cursor(Event::Key(KeyEvent {
+                    code: KeyCode::Right,
+                    modifiers: KeyModifiers::NONE,
+                }));
             }
 
-            // Go to top of document with 'g'
-            (Mode::Normal, Key::Char('g')) => {
+            // Go to top of document with 'gg'
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('g'),
+                    ..
+                }),
+            ) => {
                 if self.previous_characters.last() == Some(&'g') {
                     self.cursor_position.y = 0;
                     self.previous_characters.clear();
@@ -328,12 +483,24 @@ impl Editor {
             }
 
             // Go to bottom of document with 'G'
-            (Mode::Normal, Key::Char('G')) => {
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('G'),
+                    ..
+                }),
+            ) => {
                 self.cursor_position.y = self.document.len() - 1;
             }
 
             // push char to vector in normal mode if no use for it.
-            (Mode::Normal, Key::Char(c)) => self.previous_characters.push(c),
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char(c),
+                    ..
+                }),
+            ) => self.previous_characters.push(c),
             _ => (),
         }
         self.scroll();
@@ -359,7 +526,7 @@ impl Editor {
             offset.x = x.saturating_sub(width).saturating_add(1);
         }
     }
-    fn move_cursor(&mut self, key: Key) {
+    fn move_cursor(&mut self, event: Event) {
         let Position { mut y, mut x } = self.cursor_position;
         let height = self.document.len();
         let mut width = if let Some(row) = self.document.row(y) {
@@ -367,14 +534,34 @@ impl Editor {
         } else {
             0
         };
-        match key {
-            Key::Char('k') | Key::Up => y = y.saturating_sub(1),
-            Key::Char('j') | Key::Down => {
+        match event {
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('k'),
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Up, ..
+            }) => y = y.saturating_sub(1),
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('j'),
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Down,
+                ..
+            }) => {
                 if y < height.saturating_sub(1) {
                     y += 1;
                 }
             }
-            Key::Char('h') | Key::Left => {
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('h'),
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Left,
+                ..
+            }) => {
                 if x > 0 {
                     x -= 1;
                 } else if y > 0 {
@@ -386,7 +573,14 @@ impl Editor {
                     }
                 }
             }
-            Key::Char('l') | Key::Right => {
+            Event::Key(KeyEvent {
+                code: KeyCode::Char('l'),
+                ..
+            })
+            | Event::Key(KeyEvent {
+                code: KeyCode::Right,
+                ..
+            }) => {
                 if x < width {
                     x += 1;
                 } else if y < height {
@@ -492,7 +686,7 @@ impl Editor {
     }
     fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>, std::io::Error>
     where
-        C: FnMut(&mut Self, Key, &String),
+        C: FnMut(&mut Self, Event, &String),
     {
         let mut result = String::new();
         loop {
@@ -500,14 +694,25 @@ impl Editor {
             self.refresh_screen()?;
             let key = Terminal::read_key()?;
             match key {
-                Key::Backspace => result.truncate(result.len().saturating_sub(1)),
-                Key::Char('\n') => break,
-                Key::Char(c) => {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Backspace,
+                    ..
+                }) => result.truncate(result.len().saturating_sub(1)),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('\n'),
+                    ..
+                }) => break,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char(c),
+                    ..
+                }) => {
                     if !c.is_control() {
                         result.push(c);
                     }
                 }
-                Key::Esc => {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Esc, ..
+                }) => {
                     result.truncate(0);
                     break;
                 }

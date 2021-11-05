@@ -1,4 +1,6 @@
-use termion::color;
+use crossterm::style::Color;
+use crossterm::style::Color::Rgb;
+
 #[derive(PartialEq, Clone, Copy)]
 pub enum Type {
     None,
@@ -13,16 +15,49 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn to_color(self) -> impl color::Color {
+    pub fn to_color(self) -> Color {
+        use Type::*;
         match self {
-            Type::Number => color::Rgb(220, 163, 163),
-            Type::Match => color::Rgb(38, 139, 210),
-            Type::String => color::Rgb(211, 54, 130),
-            Type::Character => color::Rgb(108, 113, 196),
-            Type::Comment | Type::MultilineComment => color::Rgb(133, 153, 0),
-            Type::PrimaryKeywords => color::Rgb(181, 137, 0),
-            Type::SecondaryKeywords => color::Rgb(42, 161, 152),
-            _ => color::Rgb(255, 255, 255),
+            Number => Rgb {
+                r: 220,
+                g: 163,
+                b: 163,
+            },
+            Match => Rgb {
+                r: 38,
+                g: 139,
+                b: 210,
+            },
+            String => Rgb {
+                r: 211,
+                g: 54,
+                b: 130,
+            },
+            Character => Rgb {
+                r: 108,
+                g: 113,
+                b: 196,
+            },
+            Comment | MultilineComment => Rgb {
+                r: 133,
+                g: 153,
+                b: 0,
+            },
+            PrimaryKeywords => Rgb {
+                r: 181,
+                g: 137,
+                b: 0,
+            },
+            SecondaryKeywords => Rgb {
+                r: 42,
+                g: 161,
+                b: 152,
+            },
+            _ => Rgb {
+                r: 255,
+                g: 255,
+                b: 255,
+            },
         }
     }
 }

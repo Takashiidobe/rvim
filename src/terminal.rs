@@ -1,9 +1,9 @@
 use crate::Position;
+use crossterm::event::{read, Event};
+use crossterm::style::{Color, SetBackgroundColor, SetForegroundColor};
+use crossterm::terminal::{size, Clear, ClearType};
+use crossterm::{cursor, queue};
 use std::io::{self, stdout, Write};
-use termion::color;
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::{IntoRawMode, RawTerminal};
 
 pub struct Size {
     pub width: u16,
@@ -11,25 +11,22 @@ pub struct Size {
 }
 pub struct Terminal {
     size: Size,
-    _stdout: RawTerminal<std::io::Stdout>,
 }
 
 impl Terminal {
     pub fn default() -> Result<Self, std::io::Error> {
-        let size = termion::terminal_size()?;
+        let (width, height) = size()?;
+        let width = width.saturating_sub(0);
+        let height = height.saturating_sub(2);
         Ok(Self {
-            size: Size {
-                width: size.0,
-                height: size.1.saturating_sub(2),
-            },
-            _stdout: stdout().into_raw_mode()?,
+            size: Size { width, height },
         })
     }
     pub fn size(&self) -> &Size {
         &self.size
     }
     pub fn clear_screen() {
-        print!("{}", termion::clear::All);
+        queue!(stdout(), Clear(ClearType::All)).unwrap();
     }
 
     #[allow(clippy::cast_possible_truncation)]
@@ -37,37 +34,35 @@ impl Terminal {
         let Position { mut x, mut y } = position;
         x = x.saturating_add(1);
         y = y.saturating_add(1);
-        print!("{}", termion::cursor::Goto(x as u16, y as u16));
+        queue!(stdout(), cursor::MoveTo(x as u16, y as u16)).unwrap();
     }
     pub fn flush() -> Result<(), std::io::Error> {
         io::stdout().flush()
     }
-    pub fn read_key() -> Result<Key, std::io::Error> {
+    pub fn read_key() -> Result<Event, std::io::Error> {
         loop {
-            if let Some(key) = io::stdin().lock().keys().next() {
-                return key;
-            }
+            return Ok(read().unwrap());
         }
     }
     pub fn cursor_hide() {
-        print!("{}", termion::cursor::Hide);
+        queue!(stdout(), cursor::Hide).unwrap();
     }
     pub fn cursor_show() {
-        print!("{}", termion::cursor::Show);
+        queue!(stdout(), cursor::Show).unwrap();
     }
     pub fn clear_current_line() {
-        print!("{}", termion::clear::CurrentLine);
+        queue!(stdout(), Clear(ClearType::CurrentLine)).unwrap();
     }
-    pub fn set_bg_color(color: color::Rgb) {
-        print!("{}", color::Bg(color));
+    pub fn set_bg_color(color: Color) {
+        queue!(stdout(), SetBackgroundColor(color)).unwrap();
     }
     pub fn reset_bg_color() {
-        print!("{}", color::Bg(color::Reset));
+        queue!(stdout(), SetBackgroundColor(Color::Reset)).unwrap();
     }
-    pub fn set_fg_color(color: color::Rgb) {
-        print!("{}", color::Fg(color));
+    pub fn set_fg_color(color: Color) {
+        queue!(stdout(), SetForegroundColor(color)).unwrap();
     }
     pub fn reset_fg_color() {
-        print!("{}", color::Fg(color::Reset));
+        queue!(stdout(), SetForegroundColor(Color::Reset)).unwrap();
     }
 }

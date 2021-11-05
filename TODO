@@ -1,3 +1,4 @@
 # Use `redo` to implement undo functionality for rvim?
 Refactor project to define commands in a better way.
 
+# Refactor project to use crossterm instead of termion so it builds on windows.

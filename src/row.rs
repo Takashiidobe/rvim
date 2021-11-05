@@ -1,8 +1,9 @@
 use crate::highlighting;
 use crate::HighlightingOptions;
 use crate::SearchDirection;
+use crossterm::style::Color;
+use crossterm::style::SetForegroundColor;
 use std::cmp;
-use termion::color;
 use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Default)]
@@ -45,7 +46,7 @@ impl Row {
                 if highlighting_type != current_highlighting {
                     current_highlighting = highlighting_type;
                     let start_highlight =
-                        format!("{}", termion::color::Fg(highlighting_type.to_color()));
+                        format!("{}", SetForegroundColor(highlighting_type.to_color()));
                     result.push_str(&start_highlight[..]);
                 }
                 if c == '\t' {
@@ -55,7 +56,7 @@ impl Row {
                 }
             }
         }
-        let end_highlight = format!("{}", termion::color::Fg(color::Reset));
+        let end_highlight = format!("{}", SetForegroundColor(Color::White));
         result.push_str(&end_highlight[..]);
         result
     }
