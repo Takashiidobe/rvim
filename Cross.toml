@@ -15,3 +15,12 @@ image = "rustembedded/cross:armv7-unknown-linux-musleabi"
 
 [target.x86_64-sun-solaris]
 image = "rustembedded/cross:x86_64-sun-solaris"
+
+[target.x86_64-pc-solaris]
+image = "rustembedded/cross:x86_64-sun-solaris"
+
+[target.sparc64-unknown-linux-gnu]
+image = "rustembedded/cross:sparc64-unknown-linux-gnu"
+
+[target.i686-unknown-freebsd]
+image = "rustembedded/cross:i686-unknown-freebsd"

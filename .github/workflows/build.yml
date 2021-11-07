@@ -23,24 +23,24 @@ jobs:
           # DONE: Compiles
           - { target: aarch64-unknown-linux-gnu           , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
-          - { target: i686-pc-windows-gnu                 , os: windows-2019                  }
+          - { target: i686-pc-windows-gnu                 , os: windows-2019, use-cross: true }
           # DONE: Compiles
           - { target: i686-unknown-linux-gnu              , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
-          - { target: i686-pc-windows-msvc                , os: windows-2019                  }
+          - { target: i686-pc-windows-msvc                , os: windows-2019, use-cross: true}
           # DONE: Compiles
           - { target: x86_64-apple-darwin                 , os: macos-10.15                   }
           # DONE: Compiles
-          - { target: x86_64-pc-windows-gnu               , os: windows-2019                  }
+          - { target: x86_64-pc-windows-gnu               , os: windows-2019, use-cross: true }
           # DONE: Compiles
-          - { target: x86_64-pc-windows-msvc              , os: windows-2019                  }
+          - { target: x86_64-pc-windows-msvc              , os: windows-2019, use-cross: true }
           # DONE: Compiles
           - { target: x86_64-unknown-linux-gnu            , os: ubuntu-20.04                  }
           # Tier 2 with Host Tools
           # DONE: Compiles
           - { target: aarch64-apple-darwin                , os: macos-11.0                    }
           # DONE: Compiles
-          - { target: aarch64-pc-windows-msvc             , os: windows-2019                  }
+          - { target: aarch64-pc-windows-msvc             , os: windows-2019, use-cross: true }
           # DONE: Compiles
           - { target: aarch64-unknown-linux-musl          , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
@@ -64,9 +64,9 @@ jobs:
           # DONE: Compiles
           - { target: powerpc64le-unknown-linux-gnu       , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
-          - { target: riscv64gc-unknown-linux-gnu	        , os: ubuntu-20.04, use-cross: true }
+          - { target: riscv64gc-unknown-linux-gnu         , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
-          - { target: s390x-unknown-linux-gnu	            , os: ubuntu-20.04, use-cross: true }
+          - { target: s390x-unknown-linux-gnu	          , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
           - { target: x86_64-unknown-freebsd              , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles with no_std
@@ -123,7 +123,7 @@ jobs:
           # TODO: needs emcc linker
           # - { target: asmjs-unknown-emscripten            , os: ubuntu-20.04, use-cross: true }
           # TODO: needs linker
-          # - { target: i586-pc-windows-msvc                , os: windows-2019                  }
+          - { target: i586-pc-windows-msvc                , os: windows-2019, use-cross: true}
           # DONE: Compiles
           - { target: i586-unknown-linux-gnu              , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
@@ -131,7 +131,7 @@ jobs:
           # DONE: Compiles
           - { target: i686-linux-android                  , os: ubuntu-20.04, use-cross: true }
           # TODO: needs cc
-          # - { target: i686-unknown-freebsd                , os: ubuntu-20.04, use-cross: true }
+          - { target: i686-unknown-freebsd                , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
           - { target: i686-unknown-linux-musl             , os: ubuntu-20.04, use-cross: true }
           # DONE: Compiles
@@ -155,7 +155,7 @@ jobs:
           # TODO: investigate
           # - { target: riscv64imac-unknown-none-elf        , os: ubuntu-20.04, use-cross: true }
           # TODO: investigate
-          # - { target: sparc64-unknown-linux-gnu           , os: ubuntu-20.04, use-cross: true }
+          - { target: sparc64-unknown-linux-gnu           , os: ubuntu-20.04, use-cross: true }
           # TODO: investigate
           # - { target: sparcv9-sun-solaris                 , os: ubuntu-20.04, use-cross: true }
           # TODO: investigate
@@ -191,7 +191,7 @@ jobs:
           # DONE: Compiles
           - { target: x86_64-linux-android                , os: ubuntu-20.04, use-cross: true }
           # TODO: missing -lsocket -lposix4 -lmem
-          # - { target: x86_64-pc-solaris                   , os: ubuntu-20.04, use-cross: true }
+          - { target: x86_64-pc-solaris                   , os: ubuntu-20.04, use-cross: true }
           # TODO: investigate
           # - { target: x86_64-unknown-linux-gnux32         , os: ubuntu-20.04, use-cross: true }
           # TODO: investigate
@@ -378,9 +378,7 @@ jobs:
           arm-unknown-linux-*) sudo apt-get -y update ; sudo apt-get -y install gcc-arm-linux-gnueabihf ;;
           aarch64-unknown-linux-gnu) sudo apt-get -y update ; sudo apt-get -y install gcc-aarch64-linux-gnu ;;
           aarch64-unknown-linux-musl) sudo apt-get -y update ; sudo apt-get -y install musl-dev ;;
-          i686-pc-windows-gnu) echo "C:\msys64\mingw32\bin" >> $GITHUB_PATH ;;
-          i686-pc-windows-msvc) echo "C:\msys64\mingw32\bin" >> $GITHUB_PATH ;;
-          i586-pc-windows-msvc) echo "C:\msys64\mingw32\bin" >> $GITHUB_PATH ;;
+          *-pc-windows-*) echo "C:\msys64\mingw32\bin" >> $GITHUB_PATH ;;
         esac
 
     - name: Extract crate information
@@ -392,10 +390,11 @@ jobs:
         echo "PROJECT_HOMEPAGE=$(sed -n 's/^homepage = "\(.*\)"/\1/p' Cargo.toml)" >> $GITHUB_ENV
 
     - name: Install Rust toolchain
-      shell: bash
-      run: |
-        rustup default nightly
-        rustup target add ${{ matrix.job.target }}
+      uses: actions-rs/toolchain@v1
+      with:
+        target: ${{ matrix.job.target }}
+        profile: minimal
+        toolchain: stable
 
     - name: Show version information (Rust, cargo, GCC)
       shell: bash
