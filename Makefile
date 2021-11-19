@@ -1,4 +1,4 @@
-all:
+ all:
 	cargo run
 man:
 	cargo run --bin man --features build_deps

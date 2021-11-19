@@ -16,7 +16,7 @@ pub struct Terminal {
 impl Terminal {
     pub fn default() -> Result<Self, std::io::Error> {
         let (width, height) = size()?;
-        let width = width.saturating_sub(1);
+        let width = width.saturating_add(5);
         let height = height.saturating_sub(3);
         Ok(Self {
             size: Size { width, height },
@@ -32,7 +32,9 @@ impl Terminal {
     #[allow(clippy::cast_possible_truncation)]
     pub fn cursor_position(position: &Position) {
         let Position { x, y } = position;
-        queue!(stdout(), cursor::MoveTo(*x as u16, *y as u16)).unwrap();
+        let x = x.saturating_add(5) as u16;
+        let y = y.saturating_add(0) as u16;
+        queue!(stdout(), cursor::MoveTo(x, y)).unwrap();
     }
     pub fn flush() -> Result<(), std::io::Error> {
         io::stdout().flush()

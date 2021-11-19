@@ -26,11 +26,13 @@ impl From<&str> for Row {
 }
 
 impl Row {
-    pub fn render(&self, start: usize, end: usize) -> String {
+    pub fn render(&self, start: usize, end: usize, line: usize) -> String {
         let end = cmp::min(end, self.string.len());
         let start = cmp::min(start, end);
         let mut result = String::new();
         let mut current_highlighting = &highlighting::Type::None;
+        let line_no = format!("{:^4}|", line);
+        result.push_str(&line_no[..]);
         #[allow(clippy::integer_arithmetic)]
         for (index, grapheme) in self.string[..]
             .graphemes(true)

@@ -23,8 +23,6 @@ const STATUS_BG_COLOR: Color = Color::Rgb {
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const QUIT_TIMES: u8 = 1;
-
 #[derive(PartialEq, Copy, Clone)]
 pub enum SearchDirection {
     Forward,
@@ -37,16 +35,22 @@ pub struct Position {
     pub y: usize,
 }
 
+impl Position {
+    fn start() -> Self {
+        Self { x: 4, y: 0 }
+    }
+}
+
 struct StatusMessage {
     text: String,
     time: Instant,
 }
 
 impl StatusMessage {
-    fn from(message: String) -> Self {
+    fn from<S: Into<String>>(message: S) -> Self {
         Self {
             time: Instant::now(),
-            text: message,
+            text: message.into(),
         }
     }
 }
@@ -76,7 +80,6 @@ pub struct Editor {
     status_message: StatusMessage,
     highlighted_word: Option<String>,
     mode: Mode,
-    quit_times: u8,
     previous_characters: Vec<char>,
 }
 
@@ -121,7 +124,6 @@ impl Editor {
             status_message: StatusMessage::from(initial_status),
             highlighted_word: None,
             mode: Mode::Normal,
-            quit_times: QUIT_TIMES,
             previous_characters: vec![],
         }
     }
@@ -383,14 +385,24 @@ impl Editor {
                 }),
             ) => {
                 if self.previous_characters.last() == Some(&':') {
-                    if self.quit_times > 0 && self.document.is_dirty() {
-                        self.status_message = StatusMessage::from(format!(
-                            "WARNING! File has unsaved changes. Press q {} more times to quit.",
-                            self.quit_times
-                        ));
-                        self.quit_times -= 1;
+                    if self.document.is_dirty() {
+                        self.status_message =
+                            StatusMessage::from("WARNING! File has unsaved changes.");
                         return Ok(());
                     }
+                    self.should_quit = true;
+                }
+            }
+
+            // Quit without saving with :!
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('!'),
+                    ..
+                }),
+            ) => {
+                if self.previous_characters.last() == Some(&':') {
                     self.should_quit = true;
                 }
             }
@@ -451,6 +463,32 @@ impl Editor {
                 }
             }
 
+            // Go to the end of the line with $
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('$'),
+                    ..
+                }),
+            ) => {
+                self.cursor_position.x = self
+                    .document
+                    .row(self.cursor_position.y)
+                    .unwrap_or(&Row::default())
+                    .len();
+            }
+
+            // Go to the beginning of the line with ^
+            (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('^'),
+                    ..
+                }),
+            ) => {
+                self.cursor_position.x = 0;
+            }
+
             // Insert if a char is pressed in Insert mode.
             (
                 Mode::Insert,
@@ -460,6 +498,21 @@ impl Editor {
                 }),
             ) => {
                 self.document.insert(&self.cursor_position, c);
+                self.move_cursor(Event::Key(KeyEvent {
+                    code: KeyCode::Right,
+                    modifiers: KeyModifiers::NONE,
+                }));
+            }
+
+            // Insert a newline when Enter is pressed.
+            (
+                Mode::Insert,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Enter,
+                    ..
+                }),
+            ) => {
+                self.document.insert(&self.cursor_position, '\n');
                 self.move_cursor(Event::Key(KeyEvent {
                     code: KeyCode::Right,
                     modifiers: KeyModifiers::NONE,
@@ -504,10 +557,6 @@ impl Editor {
             _ => (),
         }
         self.scroll();
-        if self.quit_times < QUIT_TIMES {
-            self.quit_times = QUIT_TIMES;
-            self.status_message = StatusMessage::from(String::new());
-        }
         Ok(())
     }
     fn scroll(&mut self) {
@@ -612,12 +661,36 @@ impl Editor {
         welcome_message.truncate(width);
         println!("{}\r", welcome_message);
     }
-    pub fn draw_row(&self, row: &Row) {
+    pub fn draw_row(&self, row: &Row, row_number: u16) {
         let width = self.terminal.size().width as usize;
+        let height = self.terminal.size().height as usize;
         let start = self.offset.x;
         let end = self.offset.x.saturating_add(width);
-        let row = row.render(start, end);
+        let current_line_number = self.cursor_position.y.saturating_add(1);
+        let relative_position = height.saturating_sub(row_number.into()) as usize;
+        let row_number = row_number as usize;
+        let fold_number = self.cursor_position.y.saturating_div(height as usize);
+        let cursor_row = self.cursor_row();
+
+        //  -------------------------------------------------
+        //  | cursor: 0 | row: 1 | cursor_row: 2 | height: 4 |
+        //  | cursor: 1 | row: 2 | cursor_row: 3 | height: 4 |
+        //  | cursor: 2 | row: 3 | cursor_row: 4 | height: 4 |
+        //  | cursor: 3 | row: 4 | cursor_row: 5 | height: 4 |
+        //  ------------|--------|-------------- |-----------|
+        //->| cursor: 4 | row: 5 | cursor_row: 2 | height: 4 |
+        //  | cursor: 5 | row: 6 | cursor_row: 3 | height: 4 |
+        //  | cursor: 6 | row: 7 | cursor_row: 4 | height: 4 |
+        //  | cursor: 7 | row: 8 | cursor_row: 5 | height: 4 |
+        //  -------------------------------------------------
+        let line_no = row_number.saturating_add(cursor_row);
+
+        let row = row.render(start, end, line_no);
+
         println!("{}\r", row)
+    }
+    fn cursor_row(&self) -> usize {
+        self.cursor_position.y % (self.terminal.size().height as usize)
     }
     #[allow(clippy::integer_division, clippy::integer_arithmetic)]
     fn draw_rows(&self) {
@@ -628,7 +701,7 @@ impl Editor {
                 .document
                 .row(self.offset.y.saturating_add(terminal_row as usize))
             {
-                self.draw_row(row);
+                self.draw_row(row, terminal_row);
             } else if self.document.is_empty() && terminal_row == height / 3 {
                 self.draw_welcome_message();
             } else {
@@ -658,15 +731,15 @@ impl Editor {
         );
 
         let line_indicator = format!(
-            "{}: {} | {}/{}",
+            "{}: {} | {}:{}",
             self.mode,
             self.document.file_type(),
             self.cursor_position.y.saturating_add(1),
-            self.document.len()
+            self.cursor_position.x.saturating_add(1),
         );
         #[allow(clippy::integer_arithmetic)]
         let len = status.len() + line_indicator.len();
-        status.push_str(&" ".repeat(width.saturating_sub(len)));
+        status.push_str(&" ".repeat(width.saturating_sub(len.saturating_add(5))));
         status = format!("{}{}", status, line_indicator);
         status.truncate(width);
         Terminal::set_bg_color(STATUS_BG_COLOR);
