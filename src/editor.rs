@@ -29,16 +29,10 @@ pub enum SearchDirection {
     Backward,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
-}
-
-impl Position {
-    fn start() -> Self {
-        Self { x: 4, y: 0 }
-    }
 }
 
 struct StatusMessage {
@@ -145,10 +139,17 @@ impl Editor {
             self.draw_rows();
             self.draw_status_bar();
             self.draw_message_bar();
-            Terminal::cursor_position(&Position {
-                x: self.cursor_position.x.saturating_sub(self.offset.x),
-                y: self.cursor_position.y.saturating_sub(self.offset.y),
-            });
+            if self.cursor_position.y == 0 {
+                Terminal::cursor_position(&Position {
+                    x: self.cursor_position.x.saturating_add(5),
+                    y: self.cursor_position.y.saturating_sub(self.offset.y),
+                });
+            } else {
+                Terminal::cursor_position(&Position {
+                    x: self.cursor_position.x.saturating_sub(self.offset.x),
+                    y: self.cursor_position.y.saturating_sub(self.offset.y),
+                });
+            }
         }
         Terminal::cursor_show();
         Terminal::flush()

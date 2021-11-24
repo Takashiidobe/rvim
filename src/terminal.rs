@@ -29,12 +29,12 @@ impl Terminal {
         queue!(stdout(), Clear(ClearType::All)).unwrap();
     }
 
-    #[allow(clippy::cast_possible_truncation)]
     pub fn cursor_position(position: &Position) {
-        let Position { x, y } = position;
-        let x = x.saturating_add(5) as u16;
-        let y = y.saturating_add(0) as u16;
-        queue!(stdout(), cursor::MoveTo(x, y)).unwrap();
+        let Position { mut x, y } = position;
+        if *y != 0 {
+            x = x.saturating_add(5);
+        }
+        queue!(stdout(), cursor::MoveTo(x as u16, *y as u16)).unwrap();
     }
     pub fn flush() -> Result<(), std::io::Error> {
         io::stdout().flush()
