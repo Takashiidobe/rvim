@@ -291,6 +291,46 @@ impl Editor {
                 self.mode = Mode::Insert;
             }
 
+                        (
+                Mode::Normal,
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('b'),
+                    ..
+                }),
+            ) => {
+                let width = self.terminal.size().width as usize;
+                let height = self.terminal.size().height as usize;
+
+                // keep moving right until you've seen both a space and a char.
+                let mut seen_char = false;
+                let mut seen_space = false;
+                let mut i = 0;
+                while i < 500 {
+                    if seen_char == true && seen_space == true {
+                        break;
+                    }
+                    let row = self.document.row(self.cursor_position.y);
+                    if row.is_some() {
+                        if let Some(c) = row.unwrap().get(self.cursor_position.x) {
+                            match c {
+                                " " | "\t" | "\n" => seen_space = true,
+                                _ => seen_char = true,
+                            }
+                        } else {
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+
+                    self.move_cursor(Event::Key(KeyEvent {
+                        code: KeyCode::Left,
+                        modifiers: KeyModifiers::NONE,
+                    }));
+                    i += 1;
+                }
+            }
+
             // either save if :w or go find next word.
             // FIXME: Broken
             (
@@ -302,9 +342,37 @@ impl Editor {
             ) => {
                 // move cursor to the left until the character underneath is not a space?
                 if self.previous_characters.last() != Some(&':') {
-                    // if on an alphabetical character, find the next space char
-                    // if curr char is a space
-                    // keep going until you find the next alphanumeric char.
+                    let width = self.terminal.size().width as usize;
+                    let height = self.terminal.size().height as usize;
+
+                    // keep moving right until you've seen both a space and a char.
+                    let mut seen_char = false;
+                    let mut seen_space = false;
+                    let mut i = 0;
+                    while i < 500 {
+                        if seen_char == true && seen_space == true {
+                            break;
+                        }
+                        let row = self.document.row(self.cursor_position.y);
+                        if row.is_some() {
+                            if let Some(c) = row.unwrap().get(self.cursor_position.x) {
+                                match c {
+                                    " " | "\t" | "\n" => seen_space = true,
+                                    _ => seen_char = true,
+                                }
+                            } else {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+
+                        self.move_cursor(Event::Key(KeyEvent {
+                            code: KeyCode::Right,
+                            modifiers: KeyModifiers::NONE,
+                        }));
+                        i += 1;
+                    }
                 }
 
                 // Save with :w in normal mode.
