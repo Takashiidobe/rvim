@@ -17,7 +17,7 @@ impl Terminal {
     pub fn default() -> Result<Self, std::io::Error> {
         let (width, height) = size()?;
         let width = width.saturating_add(5);
-        let height = height.saturating_sub(3);
+        let height = height.saturating_sub(2);
         Ok(Self {
             size: Size { width, height },
         })

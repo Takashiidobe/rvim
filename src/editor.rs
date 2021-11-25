@@ -532,7 +532,26 @@ impl Editor {
                     self.cursor_position.y = 0;
                     self.previous_characters.clear();
                 } else {
-                    self.previous_characters.push('g');
+                    let mut position = 0;
+                    let mut digit = 0;
+                    while let Some(c) = self.previous_characters.pop() {
+                        if c.is_numeric() {
+                            position += (10_usize.pow(digit)) * (c.to_digit(10).unwrap() as usize);
+                            digit += 1;
+                        } else {
+                            break;
+                        }
+                    }
+                    if position == 0 {
+                        self.previous_characters.push('g');
+                    } else {
+                        if position > self.document.len() - 1 {
+                            self.cursor_position.y = self.document.len() - 1;
+                        } else {
+                            self.cursor_position.y = position;
+                        }
+                        self.previous_characters.clear();
+                    }
                 }
             }
 
@@ -591,7 +610,30 @@ impl Editor {
             })
             | Event::Key(KeyEvent {
                 code: KeyCode::Up, ..
-            }) => y = y.saturating_sub(1),
+            }) => {
+                let mut position = 0;
+                let mut digit = 0;
+                while let Some(c) = self.previous_characters.pop() {
+                    if c.is_numeric() {
+                        position += (10_usize.pow(digit)) * (c.to_digit(10).unwrap() as usize);
+                        digit += 1;
+                    } else {
+                        break;
+                    }
+                }
+                if position > y {
+                    y = 0;
+                } else if position == 0 {
+                    if y == 0 {
+                        y = 0;
+                    } else {
+                        y -= 1;
+                    }
+                } else {
+                    y -= position;
+                }
+                self.previous_characters.clear();
+            }
             Event::Key(KeyEvent {
                 code: KeyCode::Char('j'),
                 ..
@@ -600,9 +642,28 @@ impl Editor {
                 code: KeyCode::Down,
                 ..
             }) => {
-                if y < height.saturating_sub(1) {
-                    y += 1;
+                let mut position = 0;
+                let mut digit = 0;
+                while let Some(c) = self.previous_characters.pop() {
+                    if c.is_numeric() {
+                        position += (10_usize.pow(digit)) * (c.to_digit(10).unwrap() as usize);
+                        digit += 1;
+                    } else {
+                        break;
+                    }
                 }
+                if y + position > self.document.len() - 1 {
+                    y = self.document.len() - 1;
+                } else if position == 0 {
+                    if y + 1 > self.document.len() - 1 {
+                        y = self.document.len() - 1;
+                    } else {
+                        y += 1;
+                    }
+                } else {
+                    y += position;
+                }
+                self.previous_characters.clear();
             }
             Event::Key(KeyEvent {
                 code: KeyCode::Char('h'),
@@ -668,10 +729,13 @@ impl Editor {
         let start = self.offset.x;
         let end = self.offset.x.saturating_add(width);
         let current_line_number = self.cursor_position.y.saturating_add(1);
-        let relative_position = height.saturating_sub(row_number.into()) as usize;
+        let relative_position = height.saturating_sub(height.saturating_sub(row_number.into())) as usize;
         let row_number = row_number as usize;
         let fold_number = self.cursor_position.y.saturating_div(height as usize);
         let cursor_row = self.cursor_row();
+        // current line number = where the cursor is
+        // calculate the offset of the cursor
+        // if it's the next line, add a line, else don't
 
         //  -------------------------------------------------
         //  | cursor: 0 | row: 1 | cursor_row: 2 | height: 4 |
@@ -684,7 +748,8 @@ impl Editor {
         //  | cursor: 6 | row: 7 | cursor_row: 4 | height: 4 |
         //  | cursor: 7 | row: 8 | cursor_row: 5 | height: 4 |
         //  -------------------------------------------------
-        let line_no = row_number.saturating_add(cursor_row);
+        let line_no = relative_position.saturating_add(0);
+        // relative position goes from 56 to 1.
 
         let row = row.render(start, end, line_no);
 
